@@ -1,7 +1,6 @@
 #FROM openjdk:17-jdk-slim
 FROM eclipse-temurin:17-jdk
 
-
 WORKDIR /app
 
 COPY hotelio-monolith-1.0.0.jar app.jar
