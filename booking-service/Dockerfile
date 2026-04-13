@@ -1,12 +1,21 @@
-FROM python:3.11-slim
+FROM python:3.9-slim
 
 WORKDIR /app
 
+# Copy requirements and install dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY main.py .
+# Copy proto file and regenerate Python files with correct version
+COPY booking.proto .
+RUN pip install protobuf==4.25.3 grpcio-tools==1.62.1 && \
+    python -m grpc_tools.protoc --python_out=. --grpc_python_out=. --proto_path=. booking.proto
 
-EXPOSE 8000
+# Copy the rest of the application code
+COPY *.py .
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Expose the gRPC port
+EXPOSE 9090
+
+# Start the gRPC server
+CMD ["python", "main.py"]
