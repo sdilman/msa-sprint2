@@ -28,6 +28,7 @@ services:
       - "5432:5432"
     volumes:
       - monolith-db-data:/var/lib/postgresql/data
+      - ../../booking-service/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
     networks:
       - hotelio-net
 
@@ -42,6 +43,7 @@ services:
       - "5433:5432"
     volumes:
       - booking-service-db-data:/var/lib/postgresql/data
+      - ../../booking-service/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
     networks:
       - hotelio-net
 
