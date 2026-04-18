@@ -1,12 +1,13 @@
 from concurrent import futures
 from datetime import datetime, timezone
 import os
-import uuid
 
 import grpc
 import psycopg2
 import booking_pb2
 import booking_pb2_grpc
+
+from message_broker import create_kafka_topic_if_not_exists, KAFKA_TOPIC
 
 
 DATABASE_URL = os.getenv(
@@ -61,14 +62,26 @@ class BookingService(booking_pb2_grpc.BookingServiceServicer):
             context.set_details(f"Failed to create booking: {error}")
             return booking_pb2.BookingResponse()
 
+        booking_data = {
+            "user_id": request.user_id,
+            "hotel_id": request.hotel_id,
+            "promo_code": request.promo_code,
+            "discount_percent": discount_percent,
+            "price": price,
+            "created_at": created_at.isoformat(),
+        }
+        
+        self.kafka_producer.send(
+            KAFKA_TOPIC,
+            value={
+                "event_type": "booking_created",
+                "booking_id": str(booking_id),
+                **booking_data}
+        )
+
         return booking_pb2.BookingResponse(
             id=str(booking_id),
-            user_id=request.user_id,
-            hotel_id=request.hotel_id,
-            promo_code=request.promo_code,
-            discount_percent=discount_percent,
-            price=price,
-            created_at=created_at.isoformat(),
+            **booking_data
         )
 
     def ListBookings(self, request, context):
@@ -95,6 +108,7 @@ class BookingService(booking_pb2_grpc.BookingServiceServicer):
 
 
 def serve():
+    create_kafka_topic_if_not_exists()
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     booking_pb2_grpc.add_BookingServiceServicer_to_server(BookingService(), server)
     server.add_insecure_port("[::]:9090")
