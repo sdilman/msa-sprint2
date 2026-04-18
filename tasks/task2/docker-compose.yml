@@ -64,8 +64,10 @@ services:
       KAFKA_NUM_PARTITIONS: 3
       KAFKA_REPLICATION_FACTOR: 1
     depends_on:
-      - booking-service-db
-      - kafka
+      booking-service-db:
+        condition: service_started
+      kafka:
+        condition: service_healthy
 
   kafka:
     image: confluentinc/cp-kafka:7.2.1
@@ -78,6 +80,16 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
     networks:
       - hotelio-net
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
   zookeeper:
     image: confluentinc/cp-zookeeper:7.2.1
     ports:
@@ -87,6 +99,27 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
     networks:
       - hotelio-net
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  booking-history-service:
+    build:
+      context: ../../booking-history-service
+      dockerfile: Dockerfile
+    container_name: booking-history-service
+    ports:
+      - "8001:8000"
+    networks:
+      - hotelio-net
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_BOOKING_TOPIC: booking-events
+    depends_on:
+      kafka:
+        condition: service_healthy
 
 volumes:
   monolith-db-data:
