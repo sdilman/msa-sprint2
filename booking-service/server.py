@@ -72,17 +72,17 @@ class BookingService(booking_pb2_grpc.BookingServiceServicer):
         )
 
     def ListBookings(self, request, context):
+        where_close = f"WHERE user_id = '{request.user_id}'" if request.user_id else ""
         try:
             with get_connection() as connection:
                 with connection.cursor() as cursor:
                     cursor.execute(
-                        """
+                        f"""
                         SELECT id, user_id, hotel_id, promo_code, discount_percent, price, created_at
                         FROM booking
-                        WHERE user_id = %s
+                        {where_close}
                         ORDER BY created_at DESC
-                        """,
-                        (request.user_id,),
+                        """
                     )
                     rows = cursor.fetchall()
         except Exception as error:
