@@ -25,5 +25,6 @@ def create_kafka_topic_if_not_exists():
             replication_factor=1
         )
         admin_client.create_topics(new_topics=[topic])
+        admin_client.close()
     except TopicAlreadyExistsError:
         pass  # Топик уже существует

@@ -59,10 +59,13 @@ services:
     environment:
       DATABASE_URL: postgresql://booking-service:booking-service@booking-service-db:5432/booking-service
       MONOLITH_URL: http://monolith:8080
-    KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-    KAFKA_BOOKING_TOPIC: booking-events
-    KAFKA_NUM_PARTITIONS: 3
-    KAFKA_REPLICATION_FACTOR: 1
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_BOOKING_TOPIC: booking-events
+      KAFKA_NUM_PARTITIONS: 3
+      KAFKA_REPLICATION_FACTOR: 1
+    depends_on:
+      - booking-service-db
+      - kafka
 
   kafka:
     image: confluentinc/cp-kafka:7.2.1
