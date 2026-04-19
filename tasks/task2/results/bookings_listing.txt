@@ -1,0 +1,38 @@
+stepandilman@MacBook-Pro task2 % curl http://localhost:8084/api/bookings 
+{"timestamp":"2026-04-19T14:45:16.764+00:00","status":500,"error":"Internal Server Error","path":"/api/bookings"}%    
+
+
+(venv) stepandilman@MacBook-Pro booking-service % python client.py 
+List all
+bookings {
+  id: "30"
+  user_id: "test-user-2"
+  hotel_id: "test-hotel-1"
+  promo_code: "TESTCODE1"
+  discount_percent: 10
+  price: 100
+  created_at: "2026-04-19T14:34:15.876816"
+}
+bookings {
+  id: "29"
+  user_id: "test-user-3"
+  hotel_id: "test-hotel-1"
+  price: 100
+  created_at: "2026-04-19T14:34:15.750825"
+}
+bookings {
+  id: "27"
+  user_id: "test-user-2"
+  hotel_id: "test-hotel-1"
+  promo_code: "TESTCODE1"
+  discount_percent: 10
+  price: 90
+  created_at: "2026-04-19T14:34:15.410309"
+}
+bookings {
+  id: "28"
+  user_id: "test-user-3"
+  hotel_id: "test-hotel-1"
+  price: 80
+  created_at: "2026-04-19T14:34:15.410309"
+}

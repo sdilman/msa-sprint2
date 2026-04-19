@@ -5,6 +5,7 @@ import logging
 
 import grpc
 import psycopg2
+import requests
 import booking_pb2
 import booking_pb2_grpc
 
@@ -19,6 +20,7 @@ DATABASE_URL = os.getenv(
     "DATABASE_URL",
     "postgresql://booking-service:booking-service@booking-service-db:5432/booking-service",
 )
+MONOLITH_URL = os.getenv("MONOLITH_URL", "http://monolith:8080")
 
 
 def get_connection():
@@ -43,6 +45,90 @@ class BookingService(booking_pb2_grpc.BookingServiceServicer):
         self.kafka_producer = get_kafka_producer()
 
     def CreateBooking(self, request, context):
+        # Check if user is active before creating booking
+        try:
+            user_active_url = f"{MONOLITH_URL}/api/users/{request.user_id}/active"
+            response = requests.get(user_active_url, timeout=5)
+            
+            # Check if the request was successful
+            if response.status_code != 200:
+                logger.error(f"Failed to check user active status. Status code: {response.status_code}")
+                context.set_code(grpc.StatusCode.INTERNAL)
+                context.set_details(f"Failed to check user active status. Status code: {response.status_code}")
+                return booking_pb2.BookingResponse()
+            
+            # If the user is not active, return an error
+            if not response.text.strip().lower() == 'true':
+                context.set_code(grpc.StatusCode.FAILED_PRECONDITION)
+                context.set_details(f"User {request.user_id} is not active")
+                return booking_pb2.BookingResponse()
+        except requests.exceptions.RequestException as error:
+            logger.error(f"Failed to check user active status: {error}")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"Failed to check user active status: {error}")
+            return booking_pb2.BookingResponse()
+        except Exception as error:
+            logger.error(f"Unexpected error when checking user active status: {error}")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"Unexpected error when checking user active status: {error}")
+            return booking_pb2.BookingResponse()
+
+        # Check if hotel is trusted
+        try:
+            hotel_trusted_url = f"{MONOLITH_URL}/api/reviews/hotel/{request.hotel_id}/trusted"
+            response = requests.get(hotel_trusted_url, timeout=5)
+            
+            # Check if the request was successful
+            if response.status_code != 200:
+                logger.error(f"Failed to check hotel trusted status. Status code: {response.status_code}")
+                context.set_code(grpc.StatusCode.INTERNAL)
+                context.set_details(f"Failed to check hotel trusted status. Status code: {response.status_code}")
+                return booking_pb2.BookingResponse()
+            
+            # If the hotel is not trusted, return an error
+            if not response.text.strip().lower() == 'true':
+                context.set_code(grpc.StatusCode.FAILED_PRECONDITION)
+                context.set_details(f"Hotel {request.hotel_id} is not trusted")
+                return booking_pb2.BookingResponse()
+        except requests.exceptions.RequestException as error:
+            logger.error(f"Failed to check hotel trusted status: {error}")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"Failed to check hotel trusted status: {error}")
+            return booking_pb2.BookingResponse()
+        except Exception as error:
+            logger.error(f"Unexpected error when checking hotel trusted status: {error}")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"Unexpected error when checking hotel trusted status: {error}")
+            return booking_pb2.BookingResponse()
+
+        # Check if hotel is fully booked
+        try:
+            hotel_fully_booked_url = f"{MONOLITH_URL}/api/hotels/{request.hotel_id}/fully-booked"
+            response = requests.get(hotel_fully_booked_url, timeout=5)
+            
+            # Check if the request was successful
+            if response.status_code != 200:
+                logger.error(f"Failed to check hotel fully booked status. Status code: {response.status_code}")
+                context.set_code(grpc.StatusCode.INTERNAL)
+                context.set_details(f"Failed to check hotel fully booked status. Status code: {response.status_code}")
+                return booking_pb2.BookingResponse()
+            
+            # If the hotel is fully booked, return an error
+            if response.text.strip().lower() == 'true':
+                context.set_code(grpc.StatusCode.RESOURCE_EXHAUSTED)
+                context.set_details(f"Hotel {request.hotel_id} is fully booked")
+                return booking_pb2.BookingResponse()
+        except requests.exceptions.RequestException as error:
+            logger.error(f"Failed to check hotel fully booked status: {error}")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"Failed to check hotel fully booked status: {error}")
+            return booking_pb2.BookingResponse()
+        except Exception as error:
+            logger.error(f"Unexpected error when checking hotel fully booked status: {error}")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"Unexpected error when checking hotel fully booked status: {error}")
+            return booking_pb2.BookingResponse()
+
         discount_percent = 10.0 if request.promo_code else 0.0
         price = 100.0
         created_at = datetime.now(timezone.utc)

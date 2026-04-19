@@ -3,3 +3,4 @@ grpcio-tools
 protobuf
 psycopg2-binary
 kafka-python
+requests
