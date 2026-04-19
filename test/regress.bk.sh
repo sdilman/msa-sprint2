@@ -97,66 +97,36 @@ curl -sSf "${BASE}/api/promos/TESTCODE-OLD/valid" | grep -q 'false' && pass "И�
 # 6. Валидация промо для user-2 (обычного)
 curl -sSf -X POST "${BASE}/api/promos/validate?code=TESTCODE1&userId=test-user-2" | grep -q 'TESTCODE1' && pass "POST /validate промо прошёл" || fail "POST /validate не прошёл"
 
-
-
-
-
-
-# Проверка соединения
-echo "🧪 Проверка подключения к БД Booking Service..."
-timeout 2 bash -c "</dev/tcp/${DB_HOST_BOOKING}/${DB_PORT_BOOKING}" \
-  || { echo "❌ Не удалось подключиться к ${DB_HOST_BOOKING}:${DB_PORT_BOOKING}"; exit 1; }
-
-# Загрузка фикстур
-echo "🧪 Загрузка фикстур для бронирований..."
-PGPASSWORD="${DB_PASSWORD_BOOKING}" psql -h "${DB_HOST_BOOKING}" -p "${DB_PORT_BOOKING}" -U "${DB_USER_BOOKING}" "${DB_NAME_BOOKING}" < init-fixtures-booking.sql
-
-echo ""
-echo "🧪 Выполнение gRPC-тестов..."
 echo ""
 echo "Тесты бронирования..."
 
-# Функция для вызова gRPC методов
-grpc_call() {
-  local method=$1
-  local data=$2
-  grpcurl -plaintext -import-path . -proto booking.proto -d "$data" booking-service:9090 booking.BookingService/$method 2>/dev/null
-}
-
 # 1. Получение всех бронирований
-grpc_call "ListBookings" '{}' | grep -q 'test-user-2' && pass "Все бронирования получены" || fail "Бронирования не получены"
+curl -sSf "${BASE}/api/bookings" | grep -q 'test-user-2' && pass "Все бронирования получены" || fail "Бронирования не получены"
 
 # 2. Получение бронирований пользователя
-grpc_call "ListBookings" '{"user_id": "test-user-2"}' | grep -q 'test-user-2' && pass "Бронирования test-user-2 найдены" || fail "Нет бронирований test-user-2"
+curl -sSf "${BASE}/api/bookings?userId=test-user-2" | grep -q 'test-user-2' && pass "Бронирования test-user-2 найдены" || fail "Нет бронирований test-user-2"
 
 # 3. Успешное бронирование отеля без промо
-grpc_call "CreateBooking" '{"user_id": "test-user-3", "hotel_id": "test-hotel-1"}' | grep -q 'test-hotel-1' && pass "Бронирование прошло (без промо)" || fail "Бронирование (без промо) не прошло"
+curl -sSf -X POST "${BASE}/api/bookings?userId=test-user-3&hotelId=test-hotel-1" | grep -q 'test-hotel-1' && pass "Бронирование прошло (без промо)" || fail "Бронирование (без промо) не прошло"
 
 # 4. Успешное бронирование с промо
-grpc_call "CreateBooking" '{"user_id": "test-user-2", "hotel_id": "test-hotel-1", "promo_code": "TESTCODE1"}' | grep -q 'TESTCODE1' && pass "Бронирование с промо прошло" || fail "Бронирование с промо не прошло"
+curl -sSf -X POST "${BASE}/api/bookings?userId=test-user-2&hotelId=test-hotel-1&promoCode=TESTCODE1" | grep -q 'TESTCODE1' && pass "Бронирование с промо прошло" || fail "Бронирование с промо не прошло"
 
 # 5. Ошибка — неактивный пользователь
-# Note: gRPC will return an error for invalid users, we check if the call fails
-if grpc_call "CreateBooking" '{"user_id": "test-user-0", "hotel_id": "test-hotel-1"}' >/dev/null 2>&1; then
-  fail "Ошибка: сервер принял бронирование от неактивного пользователя"
-else
+code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${BASE}/api/bookings?userId=test-user-0&hotelId=test-hotel-1")
+if [[ "$code" == "500" ]]; then
   pass "Отклонено: неактивный пользователь"
+else
+  fail "Ошибка: сервер принял бронирование от неактивного пользователя (код $code)"
 fi
 
 # 6. Ошибка — отель не доверенный
-# Note: gRPC will return an error for untrusted hotels, we check if the call fails
-if grpc_call "CreateBooking" '{"user_id": "test-user-2", "hotel_id": "test-hotel-3"}' >/dev/null 2>&1; then
-  fail "Ошибка: сервер принял бронирование от недоверенного отеля"
-else
-  pass "Отклонено: недоверенный отель"
-fi
+curl -s -o /dev/null -w "%{http_code}" -X POST "${BASE}/api/bookings?userId=test-user-2&hotelId=test-hotel-3" | grep -q '500' \
+  && pass "Отклонено: недоверенный отель" \
+  || fail "Ошибка: сервер принял бронирование от недоверенного отеля"
 
 # 7. Ошибка — отель полностью забронирован
-# Note: gRPC will return an error for fully booked hotels, we check if the call fails
-if grpc_call "CreateBooking" '{"user_id": "test-user-2", "hotel_id": "test-hotel-2"}' >/dev/null 2>&1; then
-  fail "Ошибка: сервер принял бронирование в полностью занятом отеле"
-else
-  pass "Отклонено: отель полностью забронирован"
-fi
-
+curl -s -o /dev/null -w "%{http_code}" -X POST "${BASE}/api/bookings?userId=test-user-2&hotelId=test-hotel-2" | grep -q '500' \
+  && pass "Отклонено: отель полностью забронирован" \
+  || fail "Ошибка: сервер принял бронирование в полностью занятом отеле"
 echo "✅ Все HTTP-тесты пройдены!"

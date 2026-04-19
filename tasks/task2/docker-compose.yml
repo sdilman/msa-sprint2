@@ -63,6 +63,12 @@ services:
       KAFKA_BOOKING_TOPIC: booking-events
       KAFKA_NUM_PARTITIONS: 3
       KAFKA_REPLICATION_FACTOR: 1
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "9090"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     depends_on:
       booking-service-db:
         condition: service_started
@@ -119,6 +125,32 @@ services:
       KAFKA_BOOKING_TOPIC: booking-events
     depends_on:
       kafka:
+        condition: service_healthy
+
+  test:
+    build:
+      context: ../../test
+      dockerfile: Dockerfile
+    networks:
+      - hotelio-net
+    environment:
+      DB_HOST: monolith-db
+      DB_PORT: 5432
+      DB_USER: hotelio
+      DB_PASSWORD: hotelio
+      DB_NAME: hotelio
+      API_URL: http://monolith:8080
+      DB_HOST_BOOKING: booking-service-db
+      DB_PORT_BOOKING: 5432
+      DB_USER_BOOKING: booking-service
+      DB_PASSWORD_BOOKING: booking-service
+      DB_NAME_BOOKING: booking-service
+    volumes:
+      - ../../booking-service/booking.proto:/app/booking.proto:ro
+    depends_on:
+      # monolith:
+      #   condition: service_healthy
+      booking-service:
         condition: service_healthy
 
 volumes:
